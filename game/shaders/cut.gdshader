@@ -22,7 +22,7 @@ void vertex() {
 }
 
 void fragment() {
-	if (cutaway_discard(v_wpos, FRAGCOORD.xy)) {
+	if (roof_discard(v_wpos) || cutaway_discard(v_wpos, FRAGCOORD.xy)) {
 		discard;
 	}
 	float y = v_wpos.y - base_y;

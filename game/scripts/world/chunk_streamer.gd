@@ -110,6 +110,7 @@ func _instantiate(data: Dictionary) -> void:
 	var node := Node3D.new()
 	node.name = "Chunk_%d_%d" % [key.x, key.y]
 	add_child(node)
+	chunks[key] = node
 	node.position = Vector3(key.x * CHUNK, 0, key.y * CHUNK)
 
 	var arrays := []

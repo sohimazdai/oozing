@@ -75,7 +75,7 @@ vec3 apply_pattern(vec3 base, vec3 base2, vec2 uv, vec3 n) {
 }
 
 void fragment() {
-	if (use_cutaway && cutaway_discard(v_wpos, FRAGCOORD.xy)) {
+	if (use_cutaway && (roof_discard(v_wpos) || cutaway_discard(v_wpos, FRAGCOORD.xy))) {
 		discard;
 	}
 	vec3 base = albedo.rgb * v_inst.rgb;

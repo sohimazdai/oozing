@@ -25,7 +25,7 @@ void fragment() {
 	if (!FRONT_FACING) {
 		NORMAL = -NORMAL;
 	}
-	if (use_cutaway && cutaway_discard(v_wpos, FRAGCOORD.xy)) {
+	if (use_cutaway && (roof_discard(v_wpos) || cutaway_discard(v_wpos, FRAGCOORD.xy))) {
 		discard;
 	}
 	ALBEDO = v_col;

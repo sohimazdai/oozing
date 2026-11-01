@@ -12,7 +12,7 @@ extends RefCounted
 
 const WATER_LEVEL := 0.0
 ## Шаг сетки, в каждой клетке которой может оказаться случайный объём.
-const VOLUME_CELL := 150.0
+const VOLUME_CELL := 110.0
 const SECTOR := 400.0
 
 var seed_value: int
@@ -78,12 +78,14 @@ func base_height(x: float, z: float) -> float:
 	if h > floor_h:
 		var valley := smoothstep(0.035, 0.17, r)
 		h = floor_h + (h - floor_h) * pow(valley, 1.4)
-	var bank := smoothstep(0.0, 0.03, r)
-	var bed := lerpf(WATER_LEVEL - 1.9, floor_h, bank * bank)
-	# Броды: местами дно поднимается, и реку можно перейти.
-	if _ford.get_noise_2d(x, z) > 0.42:
-		bed = maxf(bed, WATER_LEVEL - 0.45)
-	return minf(h, bed)
+	if r < 0.03:
+		var bank := r / 0.03
+		var bed := lerpf(WATER_LEVEL - 1.9, floor_h, bank * bank)
+		# Броды: местами дно поднимается, и реку можно перейти.
+		if _ford.get_noise_2d(x, z) > 0.42:
+			bed = maxf(bed, WATER_LEVEL - 0.45)
+		h = minf(h, bed)
+	return h
 
 
 ## Высота поверхности, по которой ходит герой: внутри объёма — его земля.
@@ -183,7 +185,7 @@ func _find_site(around: Vector2, r: float, min_d: float, max_d: float, prefer: V
 		if best != Vector2.INF:
 			return best
 		d += 6.0
-	return around
+	return around + prefer * maxf(min_d, 40.0)
 
 
 func _place_fixed_volumes() -> void:
@@ -197,13 +199,24 @@ func _place_fixed_volumes() -> void:
 	fixed_volumes.append(_make_volume("start_house", "house", house_c, house_r, 2, 0.0))
 
 
+## Уровень земли фрагмента: ближе к средней высоте по краю круга, чуть выше неё.
+## Тогда фрагмент не сидит в яме, а местами выступает срезом земного грунта.
+func _volume_base(c: Vector2, r: float) -> float:
+	var ring := 0.0
+	for i in 16:
+		var a := TAU * i / 16.0
+		ring += base_height(c.x + cos(a) * r, c.y + sin(a) * r)
+	ring /= 16.0
+	return lerpf(base_height(c.x, c.y), ring, 0.75) + 0.3
+
+
 func _make_volume(id: String, type: String, c: Vector2, r: float, vseed: int, rot: float) -> Dictionary:
 	var v := {
 		"id": id,
 		"type": type,
 		"center": c,
 		"radius": r,
-		"base_y": base_height(c.x, c.y),
+		"base_y": _volume_base(c, r),
 		"seed": vseed,
 		"rot": rot,
 	}
@@ -218,7 +231,7 @@ const RANDOM_TYPES := ["road", "road", "shed", "shed", "kiosk", "field", "garage
 func _cell_volume(cx: int, cz: int) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = ihash(cx, cz, seed_value * 7 + 3)
-	if rng.randf() > 0.55:
+	if rng.randf() > 0.7:
 		return {}
 	var type: String = RANDOM_TYPES[rng.randi() % RANDOM_TYPES.size()]
 	var r := rng.randf_range(6.0, 13.0)
@@ -226,7 +239,7 @@ func _cell_volume(cx: int, cz: int) -> Dictionary:
 		r = rng.randf_range(11.0, 18.0)
 	elif type == "kiosk":
 		r = rng.randf_range(5.0, 8.0)
-	var margin := 30.0
+	var margin := 24.0
 	var c := Vector2(
 		cx * VOLUME_CELL + rng.randf_range(margin, VOLUME_CELL - margin),
 		cz * VOLUME_CELL + rng.randf_range(margin, VOLUME_CELL - margin))
@@ -278,5 +291,6 @@ static func _circle_hits_rect(c: Vector2, r: float, x0: float, z0: float, x1: fl
 
 
 func spawn_point() -> Vector3:
+	# Перед пастью динозавра, чтобы он был в кадре с первой секунды.
 	var g: Dictionary = fixed_volumes[0]
-	return Vector3(g.center.x + 2.0, g.base_y + 0.05, g.center.y + 5.0)
+	return Vector3(g.center.x - 1.0, g.base_y + 0.05, g.center.y + 2.2)

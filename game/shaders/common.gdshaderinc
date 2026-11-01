@@ -3,6 +3,12 @@
 global uniform vec3 player_pos;      // ноги героя в мировых координатах
 global uniform vec3 cam_fwd;         // направление взгляда камеры
 global uniform float cutaway_radius; // радиус прозрачного окна вокруг героя
+global uniform float roof_cut_y;     // когда герой в здании — всё выше этой отметки скрыто
+global uniform vec4 roof_cut_area;   // xy — центр здания по XZ, z — радиус действия
+
+bool roof_discard(vec3 wpos) {
+	return wpos.y > roof_cut_y && distance(wpos.xz, roof_cut_area.xy) < roof_cut_area.z;
+}
 
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);

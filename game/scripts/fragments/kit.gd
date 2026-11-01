@@ -121,6 +121,8 @@ static func label(parent: Node, text: String, pos: Vector3, rot_y: float, size :
 	l.shaded = false
 	l.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(l)
+	# Надписи не умеют исчезать шейдером — когда герой в здании, их прячет main.gd.
+	l.add_to_group("labels")
 	return l
 
 
