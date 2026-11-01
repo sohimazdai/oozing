@@ -67,10 +67,15 @@
 ## Проверки
 
 ```sh
-/Applications/Godot.app/Contents/MacOS/Godot --headless --path game --script res://tests/run_tests.gd
+G=/Applications/Godot.app/Contents/MacOS/Godot
+$G --headless --path game --script res://tests/run_tests.gd    # мир
+$G --headless --path game --script res://tests/test_house.gd   # дом
+$G --headless --path game -- --frames=2000 --route=house_stairs # пройти по лестнице на 2-й этаж
 ```
 
-Проверяются детерминизм мира, точное совпадение краёв соседних чанков, радиусы и непересечение объёмов, наличие рек и бродов.
+Проверяются детерминизм мира, точное совпадение краёв соседних чанков, радиусы и непересечение объёмов, наличие рек и бродов, свободные дверные проёмы и высоты лестничных площадок. Маршрут печатает, на какой высоте герой дошёл до каждой точки.
+
+Ещё ключи для запуска (после `--`): `--autowalk=x,z` — идти в направлении, `--autoclimb` — забираться на уступы, `--start=x,z` — стартовая точка, `--time=0..3` — время суток, `--pixel=0..3`, `--verbose`, `--tour=папка` — снять контрольные скриншоты.
 
 ## Что пока условно
 

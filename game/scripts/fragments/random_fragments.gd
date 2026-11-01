@@ -7,7 +7,7 @@ extends RefCounted
 
 static func _setup(node: Node3D, vol: Dictionary, floor_mat: Material, neutral := Color(0.86, 0.83, 0.76)) -> Array:
 	var r: float = vol.radius
-	var parts := Kit.volume_cut(node, r, Mats.cut(vol.base_y, 0, neutral), 12.0, 1.0)
+	var parts := Kit.volume_cut(node, r, Mats.cut(vol.base_y, 0, neutral), 12.0, vol.depth)
 	var content: CSGCombiner3D = parts[1]
 	content.rotation.y = vol.rot
 	Kit.box(content, Vector3(2.0 * r + 6.0, 0.4, 2.0 * r + 6.0), Vector3(0, -0.2, 0), floor_mat)
@@ -46,18 +46,22 @@ static func _car(c: Node, pos: Vector3, yaw: float, color: Color) -> void:
 
 ## Кусок дороги: асфальт, разметка, тротуар, фонарь, знак, отбойник, машина.
 static func road(node: Node3D, vol: Dictionary) -> void:
-	var s := _setup(node, vol, Mats.asphalt())
+	# Вокруг дороги — земная обочина: пыльная трава, а не порода Кромы.
+	var verge := Mats.world(Color(0.48, 0.52, 0.30), {"noise": 0.22, "rough": 0.95})
+	var s := _setup(node, vol, verge)
 	var c: CSGCombiner3D = s[0]
 	var rng: RandomNumberGenerator = s[1]
 	var extra: Node3D = s[2]
 	var r: float = vol.radius
 	var white := Mats.paint(Color(0.92, 0.92, 0.88))
 	var span := 2.0 * r + 4.0
-	Kit.box(c, Vector3(span, 0.012, 0.12), Vector3(0, 0.006, 3.2), white)
-	Kit.box(c, Vector3(span, 0.012, 0.12), Vector3(0, 0.006, -3.2), white)
+	Kit.box(c, Vector3(span, 0.06, 7.8), Vector3(0, 0.0, 0), Mats.asphalt())
+	Kit.box(c, Vector3(span, 0.04, 1.2), Vector3(0, -0.01, -4.5), Mats.world(Color(0.62, 0.58, 0.50), {"noise": 0.3}))
+	Kit.box(c, Vector3(span, 0.012, 0.12), Vector3(0, 0.036, 3.2), white)
+	Kit.box(c, Vector3(span, 0.012, 0.12), Vector3(0, 0.036, -3.2), white)
 	var x := -r - 2.0
 	while x < r + 2.0:
-		Kit.box(c, Vector3(3.0, 0.012, 0.12), Vector3(x, 0.006, 0), white)
+		Kit.box(c, Vector3(3.0, 0.012, 0.12), Vector3(x, 0.036, 0), white)
 		x += 6.0
 	Kit.box(c, Vector3(span, 0.16, 0.2), Vector3(0, 0.08, 3.7), Mats.concrete())
 	Kit.box(c, Vector3(span, 0.12, 3.0), Vector3(0, 0.06, 5.3), Mats.paving())

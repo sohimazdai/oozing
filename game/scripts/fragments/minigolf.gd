@@ -7,7 +7,7 @@ extends RefCounted
 
 static func build(node: Node3D, vol: Dictionary) -> void:
 	var r: float = vol.radius
-	var parts := Kit.volume_cut(node, r, Mats.cut(vol.base_y, 0, Color(0.85, 0.82, 0.74)), 12.0, 1.0)
+	var parts := Kit.volume_cut(node, r, Mats.cut(vol.base_y, 0, Color(0.85, 0.82, 0.74)), 12.0, vol.depth)
 	var content: CSGCombiner3D = parts[1]
 	Kit.box(content, Vector3(2.0 * r + 4.0, 0.5, 2.0 * r + 4.0), Vector3(0, -0.25, 0), Mats.paving())
 	_lanes(content)

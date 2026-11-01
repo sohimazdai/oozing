@@ -10,7 +10,7 @@ extends RefCounted
 ## Корень фрагмента: CSG-объединение содержимого ∩ цилиндр объёма.
 ## Возвращает [корень, контейнер для содержимого]. Всё в локальных координатах:
 ## (0, 0, 0) — центр круга на уровне земли фрагмента.
-static func volume_cut(parent: Node3D, radius: float, cut_mat: Material, height := 40.0, depth := 1.0) -> Array:
+static func volume_cut(parent: Node3D, radius: float, cut_mat: Material, height := 40.0, depth := 1.0, with_soil := true) -> Array:
 	var root := CSGCombiner3D.new()
 	root.name = "VolumeCut"
 	root.use_collision = true
@@ -18,6 +18,14 @@ static func volume_cut(parent: Node3D, radius: float, cut_mat: Material, height 
 	var content := CSGCombiner3D.new()
 	content.name = "Content"
 	root.add_child(content)
+	# Грунт под землёй фрагмента: сплошной до низа объёма, срез без щелей.
+	if with_soil:
+		var soil := CSGBox3D.new()
+		soil.name = "Soil"
+		soil.size = Vector3(2.0 * radius + 2.0, depth, 2.0 * radius + 2.0)
+		soil.position = Vector3(0, -depth * 0.5 - 0.15, 0)
+		soil.material = cut_mat
+		content.add_child(soil)
 	var cyl := CSGCylinder3D.new()
 	cyl.name = "Volume"
 	cyl.operation = CSGShape3D.OPERATION_INTERSECTION

@@ -64,10 +64,10 @@ func _ready() -> void:
 	env.glow_bloom = 0.04
 	env.glow_hdr_threshold = 1.1
 	env.fog_enabled = true
-	# Ортокамера: туман по дальности красил бы весь кадр одинаково.
-	# Оставляем только дымку в низинах — она подчёркивает рельеф.
-	env.fog_height = 2.0
-	env.fog_height_density = 0.25
+	# Ортокамера: все точки кадра почти на одном расстоянии, поэтому туман
+	# по дальности даёт лишь лёгкую общую дымку. Высотный туман выключен:
+	# он заливал реки и низины сплошной пеленой.
+	env.fog_height_density = 0.0
 	env.fog_aerial_perspective = 0.0
 	env.fog_sky_affect = 0.0
 	env.adjustment_enabled = true

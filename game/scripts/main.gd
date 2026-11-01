@@ -94,9 +94,12 @@ func _ready() -> void:
 	if _args.has("tour"):
 		_tour_dir = _args.tour
 		_build_tour()
+	if _args.has("route"):
+		_build_route(str(_args.route))
 	if _args.has("autowalk"):
 		var d: PackedStringArray = str(_args.autowalk).split(",")
 		player.auto_walk = Vector3(float(d[0]), 0, float(d[1])).normalized()
+	player.auto_climb = _args.has("autoclimb")
 
 
 func _parse_args() -> void:
@@ -153,6 +156,8 @@ func _process(_delta: float) -> void:
 		get_tree().quit()
 	if _booted and not _tour.is_empty():
 		_run_tour()
+	if _booted and not _route.is_empty():
+		_follow_route()
 
 
 func _boot() -> void:
@@ -168,6 +173,11 @@ func _boot() -> void:
 	var hit := space.intersect_ray(q)
 	if not hit.is_empty():
 		player.global_position = hit.position + Vector3(0, 0.05, 0)
+	if _args.has("start"):
+		var st: PackedStringArray = str(_args.start).split(",")
+		var sx := float(st[0])
+		var sz := float(st[1])
+		player.global_position = Vector3(sx, gen.surface_height(sx, sz) + 0.3, sz)
 	player.frozen = false
 	cam.snap_to_target()
 	_booted = true
@@ -261,7 +271,8 @@ func _build_tour() -> void:
 		if v.id.begins_with("cell_") and extra < 5:
 			_tour.append({"name": "1%d_%s" % [extra, v.type], "pos": Vector3(v.center.x + 1.0, v.base_y, v.center.y + 1.0), "width": 40.0, "pixel": 0})
 			extra += 1
-	_tour.append({"name": "20_river", "pos": _find_water_near(gc), "width": 50.0})
+	_tour.append({"name": "20_river", "pos": _find_water_near(gc, 0.5, 9.0), "width": 36.0, "time": 1})
+	_tour.append({"name": "21_ford", "pos": _find_water_near(gc, 0.05, 0.0, 0.45), "width": 26.0, "time": 0})
 	if _args.has("only"):
 		var keep: PackedStringArray = str(_args.only).split(",")
 		_tour = _tour.filter(func(s: Dictionary) -> bool:
@@ -272,14 +283,16 @@ func _build_tour() -> void:
 	DirAccess.make_dir_recursive_absolute(_tour_dir)
 
 
-func _find_water_near(c: Vector2) -> Vector3:
-	for d in range(20, 600, 10):
-		for i in 24:
-			var a := TAU * i / 24.0
+## Ищет воду глубиной от min_d до max_d и возвращает точку на back метров ближе к c.
+func _find_water_near(c: Vector2, min_d: float, back: float, max_d := 99.0) -> Vector3:
+	for d in range(20, 900, 4):
+		for i in 48:
+			var a := TAU * i / 48.0
 			var p := c + Vector2(cos(a), sin(a)) * d
-			if gen.water_depth(p.x, p.y) > 0.5:
-				var q := p + Vector2(cos(a), sin(a)) * -6.0
-				return Vector3(q.x, gen.surface_height(q.x, q.y), q.y)
+			var wd := gen.water_depth(p.x, p.y)
+			if wd > min_d and wd < max_d:
+				var q := p - Vector2(cos(a), sin(a)) * back
+				return Vector3(q.x, maxf(gen.surface_height(q.x, q.y), WorldGen.WATER_LEVEL - 0.4), q.y)
 	return gen.spawn_point()
 
 
@@ -308,3 +321,51 @@ func _run_tour() -> void:
 		_tour_wait = 0
 		if _tour.is_empty():
 			get_tree().quit()
+
+
+# --- Маршрут для проверки физики (без графики) ----------------------------------
+
+var _route: Array[Vector3] = []
+var _route_stuck := 0
+var _route_last := Vector3.INF
+
+
+func _build_route(name: String) -> void:
+	if name == "house_stairs":
+		var h: Dictionary = gen.fixed_volumes[1]
+		var c: Vector2 = h.center
+		var pts := [Vector2(-6.8, 9.5), Vector2(-6.8, 5.8), Vector2(-5.8, 3.0), Vector2(-5.8, 0.8),
+			Vector2(-7.72, 0.6), Vector2(-7.72, -3.4), Vector2(-5.88, -3.4), Vector2(-5.88, 0.6),
+			Vector2(-5.88, 3.0), Vector2(-3.0, 3.0)]
+		for p in pts:
+			_route.append(Vector3(c.x + p.x, 0, c.y + p.y))
+		_args["start"] = "%f,%f" % [_route[0].x, _route[0].z]
+		print("route: house base_y ", h.base_y)
+
+
+func _follow_route() -> void:
+	var p := player.global_position
+	var target := _route[0]
+	var d := Vector3(target.x - p.x, 0, target.z - p.z)
+	if d.length() < 0.35:
+		print("route: reached %s  at y %.2f" % [Vector2(target.x, target.z), p.y])
+		_route.pop_front()
+		_route_stuck = 0
+		if _route.is_empty():
+			player.auto_walk = Vector3.ZERO
+			print("route: done at ", p)
+		return
+	player.auto_walk = d.normalized()
+	if _frame % 30 == 0:
+		if _route_last != Vector3.INF and _route_last.distance_to(p) < 0.05:
+			_route_stuck += 1
+			if _route_stuck > 4:
+				print("route: STUCK at ", p, " heading to ", target)
+				for i in player.get_slide_collision_count():
+					var col := player.get_slide_collision(i)
+					var who: Object = col.get_collider()
+					var hp := col.get_position()
+					print("   hit ", who.get_parent().name if who is Node and who.get_parent() else who, "/", who.name if who is Node else "", " at ", hp, " local y ", snappedf(hp.y - gen.fixed_volumes[1].base_y, 0.01), " normal ", col.get_normal())
+				_route.clear()
+				player.auto_walk = Vector3.ZERO
+		_route_last = p

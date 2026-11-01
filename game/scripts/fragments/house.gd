@@ -23,6 +23,7 @@ const LEVELS := [0.3, 3.3, 6.3]       # отметки чистого пола �
 const ROOF := 9.3
 const SLAB := 0.25
 const CLEAR := 2.75                    # от пола до потолка
+const EPS := 0.02                      # перекрытие деталей в CSG
 
 # Лестничная клетка у северо-западного угла: два марша и площадка.
 const SW_X0 := IX0
@@ -42,11 +43,11 @@ static func build(node: Node3D, vol: Dictionary) -> void:
 	var base: float = vol.base_y
 
 	var bcut := Mats.cut(base, 1)
-	var a := Kit.volume_cut(node, _r, bcut, 14.0, 1.0)
+	var a := Kit.volume_cut(node, _r, bcut, 14.0, vol.depth)
 	var structure: CSGCombiner3D = a[1]
 	_structure(structure)
 
-	var b := Kit.volume_cut(node, _r, Mats.cut(base, 0), 14.0, 1.0)
+	var b := Kit.volume_cut(node, _r, Mats.cut(base, 0), 14.0, vol.depth, false)
 	var content: CSGCombiner3D = b[1]
 	_ground(content)
 	_shop(content)
@@ -83,32 +84,36 @@ static func _structure(s: CSGCombiner3D) -> void:
 	for k in 3:
 		var L: float = LEVELS[k]
 		var pm := Mats.plaster(colors[k])
+		# Детали перекрывают друг друга на EPS: совпадающие грани дают в CSG
+		# невидимые обрезки, о которые спотыкается коллизия.
 		var yc := L + CLEAR * 0.5
-		var iw := IX1 - IX0
-		var idp := IZ1 - IZ0
-		Kit.box(s, Vector3(iw, CLEAR, PLASTER), Vector3(cx, yc, IZ1 + PLASTER * 0.5), pm)
-		Kit.box(s, Vector3(iw, CLEAR, PLASTER), Vector3(cx, yc, IZ0 - PLASTER * 0.5), pm)
-		Kit.box(s, Vector3(PLASTER, CLEAR, idp), Vector3(IX0 - PLASTER * 0.5, yc, cz), pm)
-		Kit.box(s, Vector3(PLASTER, CLEAR, idp), Vector3(IX1 + PLASTER * 0.5, yc, cz), pm)
+		var hh := CLEAR + 2.0 * EPS
+		var t := PLASTER + 2.0 * EPS
+		var iw := IX1 - IX0 + 2.0 * PLASTER
+		var idp := IZ1 - IZ0 + 2.0 * PLASTER
+		Kit.box(s, Vector3(iw, hh, t), Vector3(cx, yc, IZ1 + PLASTER * 0.5 + EPS), pm)
+		Kit.box(s, Vector3(iw, hh, t), Vector3(cx, yc, IZ0 - PLASTER * 0.5 - EPS), pm)
+		Kit.box(s, Vector3(t, hh, idp), Vector3(IX0 - PLASTER * 0.5 - EPS, yc, cz), pm)
+		Kit.box(s, Vector3(t, hh, idp), Vector3(IX1 + PLASTER * 0.5 + EPS, yc, cz), pm)
 	# Перекрытия: пол магазина — плитка, выше — паркет, сверху — кровля.
 	var tiles := Mats.world(Color(0.84, 0.80, 0.70), {"pattern": Mats.PATTERN_TILES, "color2": Color(0.62, 0.58, 0.52), "scale": 1.2})
 	var parquet := Mats.wood(Color(0.66, 0.44, 0.26))
 	Kit.box(s, Vector3(w, 0.3, d), Vector3(cx, 0.15, cz), tiles)
 	for k in [1, 2]:
 		var L: float = LEVELS[k]
-		Kit.box(s, Vector3(IX1 - IX0, SLAB, IZ1 - IZ0), Vector3(cx, L - SLAB * 0.5, cz), parquet)
-	Kit.box(s, Vector3(IX1 - IX0, SLAB, IZ1 - IZ0), Vector3(cx, ROOF - SLAB * 0.5, cz), Mats.world(Color(0.33, 0.32, 0.31), {"noise": 0.15}))
+		Kit.box(s, Vector3(IX1 - IX0 + 0.1, SLAB, IZ1 - IZ0 + 0.1), Vector3(cx, L - SLAB * 0.5, cz), parquet)
+	Kit.box(s, Vector3(IX1 - IX0 + 0.1, SLAB, IZ1 - IZ0 + 0.1), Vector3(cx, ROOF - SLAB * 0.5, cz), Mats.world(Color(0.33, 0.32, 0.31), {"noise": 0.15}))
 
 	# Перегородки первого этажа: подъезд с лестницей отделён от магазина.
 	var p0 := Mats.plaster(colors[0])
 	_wall_z(s, -4.82, IZ0, IZ1, LEVELS[0], p0)
-	_wall_x(s, 1.51, SW_X0, -4.88, LEVELS[0], p0)
+	_wall_x(s, 1.51, SW_X0, -4.84, LEVELS[0], p0)
 	# Верхние этажи: клетка, три поперечные стены с проёмами.
 	for k in [1, 2]:
 		var L: float = LEVELS[k]
 		var pm := Mats.plaster(colors[k])
 		_wall_z(s, -4.94, IZ0, 1.57, L, pm)
-		_wall_x(s, 1.51, SW_X0, -4.88, L, pm)
+		_wall_x(s, 1.51, SW_X0, -4.90, L, pm)
 		for x in [-0.5, 5.5, 11.0]:
 			_wall_z(s, x, IZ0, IZ1, L, pm)
 
@@ -119,10 +124,10 @@ static func _structure(s: CSGCombiner3D) -> void:
 	# Двери во внутренних стенах.
 	for k in 3:
 		var L: float = LEVELS[k]
-		Kit.box(s, Vector3(1.2, 2.15, 0.5), Vector3(-5.8, L + 1.075, 1.51), reveal, 0.0, CSGShape3D.OPERATION_SUBTRACTION)
+		Kit.box(s, Vector3(1.2, 2.2, 0.5), Vector3(-5.8, L + 1.075, 1.51), reveal, 0.0, CSGShape3D.OPERATION_SUBTRACTION)
 		if k > 0:
 			for x in [-0.5, 5.5, 11.0]:
-				Kit.box(s, Vector3(0.5, 2.15, 1.0), Vector3(x, L + 1.075, 3.9), reveal, 0.0, CSGShape3D.OPERATION_SUBTRACTION)
+				Kit.box(s, Vector3(0.5, 2.2, 1.0), Vector3(x, L + 1.075, 3.9), reveal, 0.0, CSGShape3D.OPERATION_SUBTRACTION)
 			# Проём в перекрытии над маршами.
 			Kit.box(s, Vector3(SW_X1 - SW_X0 - 0.02, 0.5, FLIGHT_Z0 - SW_Z0 - 0.02),
 				Vector3((SW_X0 + SW_X1) * 0.5, L - SLAB * 0.5, (SW_Z0 + FLIGHT_Z0) * 0.5), reveal, 0.0, CSGShape3D.OPERATION_SUBTRACTION)
@@ -130,25 +135,27 @@ static func _structure(s: CSGCombiner3D) -> void:
 	var conc := Mats.concrete()
 	for k in [0, 1]:
 		var L: float = LEVELS[k]
-		Kit.box(s, Vector3(SW_X1 - SW_X0, 0.2, FLIGHT_Z1 - SW_Z0), Vector3((SW_X0 + SW_X1) * 0.5, L + 1.4, (SW_Z0 + FLIGHT_Z1) * 0.5), conc)
-	Kit.box(s, Vector3(0.1, LEVELS[2] + 1.0 - LEVELS[0], FLIGHT_Z0 - FLIGHT_Z1),
-		Vector3(-6.8, (LEVELS[0] + LEVELS[2] + 1.0) * 0.5, (FLIGHT_Z0 + FLIGHT_Z1) * 0.5), conc)
+		Kit.box(s, Vector3(SW_X1 - SW_X0 + 0.08, 0.2, FLIGHT_Z1 - SW_Z0 + 0.08), Vector3((SW_X0 + SW_X1) * 0.5, L + 1.4, (SW_Z0 + FLIGHT_Z1) * 0.5 - 0.04), conc)
+	Kit.box(s, Vector3(0.1, LEVELS[2] + 1.0 - LEVELS[0], FLIGHT_Z0 - FLIGHT_Z1 + 0.06),
+		Vector3(-6.8, (LEVELS[0] + LEVELS[2] + 1.0) * 0.5, (FLIGHT_Z0 + FLIGHT_Z1) * 0.5 - 0.03), conc)
 	Kit.box(s, Vector3(-6.85 - SW_X0, 1.0, 0.08), Vector3((SW_X0 - 6.85) * 0.5, LEVELS[2] + 0.5, 0.0), Mats.metal(Color(0.3, 0.22, 0.16)))
 
 
 ## Стена вдоль оси Z (поперечная), толщина 0,12, на один этаж.
 static func _wall_z(s: Node, x: float, z0: float, z1: float, L: float, m: Material) -> void:
-	Kit.box(s, Vector3(0.12, CLEAR, z1 - z0), Vector3(x, L + CLEAR * 0.5, (z0 + z1) * 0.5), m)
+	Kit.box(s, Vector3(0.12, CLEAR + 2.0 * EPS, z1 - z0 + 2.0 * EPS), Vector3(x, L + CLEAR * 0.5, (z0 + z1) * 0.5), m)
 
 
 static func _wall_x(s: Node, z: float, x0: float, x1: float, L: float, m: Material) -> void:
-	Kit.box(s, Vector3(x1 - x0, CLEAR, 0.12), Vector3((x0 + x1) * 0.5, L + CLEAR * 0.5, z), m)
+	Kit.box(s, Vector3(x1 - x0 + 2.0 * EPS, CLEAR + 2.0 * EPS, 0.12), Vector3((x0 + x1) * 0.5, L + CLEAR * 0.5, z), m)
 
 
 ## Окна и двери фасадов: [{size, pos, kind, facade, w, h}]
 static func openings() -> Array:
 	var out := []
 	var add := func(facade: String, along: float, y0: float, y1: float, width: float, kind: String) -> void:
+		if kind == "door" or kind == "shopdoor":
+			y0 -= EPS
 		var h := y1 - y0
 		var o := {"kind": kind, "facade": facade, "w": width, "h": h, "along": along, "y0": y0}
 		match facade:
@@ -195,7 +202,7 @@ static func _ground(c: CSGCombiner3D) -> void:
 static func _birch(c: CSGCombiner3D) -> void:
 	var bark := Mats.world(Color(0.92, 0.90, 0.85), {"noise": 0.25})
 	var leaves := Mats.world(Color(0.48, 0.64, 0.27), {"noise": 0.2, "rough": 0.9})
-	var p := Vector3(-6.9, 0, 8.05)
+	var p := Vector3(-4.8, 0, 8.25)
 	Kit.cyl(c, 0.15, 6.6, p + Vector3(0, 3.3, 0), bark, 10)
 	Kit.sphere(c, 1.0, p + Vector3(0, 6.1, 0), leaves, Vector3(1.8, 2.2, 1.8), CSGShape3D.OPERATION_UNION, 14)
 	Kit.sphere(c, 1.0, p + Vector3(0.7, 4.9, 0.6), leaves, Vector3(1.3, 1.4, 1.3), CSGShape3D.OPERATION_UNION, 12)

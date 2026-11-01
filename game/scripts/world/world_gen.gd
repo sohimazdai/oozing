@@ -81,9 +81,9 @@ func base_height(x: float, z: float) -> float:
 	if r < 0.03:
 		var bank := r / 0.03
 		var bed := lerpf(WATER_LEVEL - 1.9, floor_h, bank * bank)
-		# Броды: местами дно поднимается, и реку можно перейти.
-		if _ford.get_noise_2d(x, z) > 0.42:
-			bed = maxf(bed, WATER_LEVEL - 0.45)
+		# Броды: местами дно плавно поднимается, и реку можно перейти.
+		var ford := smoothstep(0.34, 0.46, _ford.get_noise_2d(x, z))
+		bed = lerpf(bed, maxf(bed, WATER_LEVEL - 0.45), ford)
 		h = minf(h, bed)
 	return h
 
@@ -119,8 +119,8 @@ func tall_grass(x: float, z: float) -> float:
 func ground_color(x: float, z: float, h: float, up: float) -> Color:
 	var m := moisture(x, z, h)
 	var dry := Color(0.80, 0.63, 0.33)      # охра степи
-	var green := Color(0.42, 0.55, 0.32)    # трава
-	var jade := Color(0.25, 0.47, 0.40)     # нефрит влажных низин
+	var green := Color(0.50, 0.60, 0.31)    # трава
+	var jade := Color(0.33, 0.53, 0.29)     # сочная зелень влажных низин (не путать с водой)
 	var c: Color
 	if m < 0.5:
 		c = dry.lerp(green, smoothstep(0.25, 0.5, m))
@@ -210,13 +210,25 @@ func _volume_base(c: Vector2, r: float) -> float:
 	return lerpf(base_height(c.x, c.y), ring, 0.75) + 0.3
 
 
+## Насколько глубоко под землю фрагмента уходит объём: до низшей точки края и ещё 0,8 м.
+## Тогда срез — сплошная стенка, и под фрагментом нет щели.
+func _volume_depth(c: Vector2, r: float, base: float) -> float:
+	var lowest := base
+	for i in 24:
+		var a := TAU * i / 24.0
+		lowest = minf(lowest, base_height(c.x + cos(a) * (r + 0.35), c.y + sin(a) * (r + 0.35)))
+	return base - lowest + 0.8
+
+
 func _make_volume(id: String, type: String, c: Vector2, r: float, vseed: int, rot: float) -> Dictionary:
+	var base := _volume_base(c, r)
 	var v := {
 		"id": id,
 		"type": type,
 		"center": c,
 		"radius": r,
-		"base_y": _volume_base(c, r),
+		"base_y": base,
+		"depth": _volume_depth(c, r, base),
 		"seed": vseed,
 		"rot": rot,
 	}

@@ -24,6 +24,7 @@ var _vault_from := Vector3.ZERO
 var _vault_to := Vector3.ZERO
 var _climb_check := 0.0
 var auto_walk := Vector3.ZERO    # для автоматических проверок из командной строки
+var auto_climb := false
 
 # Экран: «вверх» — от камеры вглубь сцены (камера смотрит на -X -Z).
 const SCREEN_UP := Vector3(-0.70710678, 0, -0.70710678)
@@ -93,7 +94,7 @@ func _physics_process(delta: float) -> void:
 	if _climb_check <= 0.0:
 		_climb_check = 0.1
 		can_climb = _find_ledge(_face).size() > 0
-	if Input.is_action_just_pressed("climb"):
+	if Input.is_action_just_pressed("climb") or (auto_climb and can_climb):
 		var ledge := _find_ledge(_face)
 		if ledge.size() > 0:
 			_start_vault(ledge[0])
@@ -162,13 +163,18 @@ func _find_ledge(f: Vector3) -> Array:
 		return []
 	var space := get_world_3d().direct_space_state
 	var feet := global_position
-	var knee := feet + Vector3(0, 0.45, 0)
-	var q := PhysicsRayQueryParameters3D.create(knee, knee + f * 0.8)
-	q.exclude = [get_rid()]
-	var hit := space.intersect_ray(q)
-	if hit.is_empty():
+	# Лучи на нескольких высотах: уступ может начинаться выше колена.
+	var dist := -1.0
+	for h in [0.3, 0.6, 0.95]:
+		var from := feet + Vector3(0, h, 0)
+		var q := PhysicsRayQueryParameters3D.create(from, from + f * 0.9)
+		q.exclude = [get_rid()]
+		var hit := space.intersect_ray(q)
+		if not hit.is_empty():
+			dist = (hit.position as Vector3 - from).length()
+			break
+	if dist < 0.0:
 		return []
-	var dist := (hit.position as Vector3 - knee).length()
 	var top := feet + f * (dist + 0.4) + Vector3(0, 1.9, 0)
 	var q2 := PhysicsRayQueryParameters3D.create(top, top - Vector3(0, 2.2, 0))
 	q2.exclude = [get_rid()]
